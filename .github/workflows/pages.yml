@@ -1,0 +1,41 @@
+name: 发布《苔石遗迹》网页试玩
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 已发布试玩包的 Release 标签
+        required: true
+        type: string
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - name: 准备网页资源
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          gh release download --repo "$GITHUB_REPOSITORY" --pattern MossStoneRuins-Web.zip --pattern SHA256SUMS.txt -- "$RELEASE_TAG"
+          grep -E '^[0-9a-f]{64}  MossStoneRuins-Web\.zip$' SHA256SUMS.txt | sha256sum --check --strict
+          mkdir web
+          unzip -q MossStoneRuins-Web.zip -d web
+          test -s web/index.html
+          test -s web/index.pck
+          test -s web/index.wasm
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: web
+      - uses: actions/deploy-pages@v5
+        id: deployment
